@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mariadb-pvc
+  labels:
+    {{- include "team-mcp.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.storage.mariadb.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.storage.storageClass }}
+  storageClassName: {{ .Values.storage.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.mariadb.size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordpress-pvc
+  labels:
+    {{- include "team-mcp.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.storage.wordpress.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.storage.storageClass }}
+  storageClassName: {{ .Values.storage.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.wordpress.size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  labels:
+    {{- include "team-mcp.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.storage.postgres.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.storage.storageClass }}
+  storageClassName: {{ .Values.storage.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.postgres.size }}

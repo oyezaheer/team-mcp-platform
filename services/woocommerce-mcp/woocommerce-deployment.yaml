@@ -1,0 +1,72 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: woocommerce-mcp
+  namespace: team-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: woocommerce-mcp
+  template:
+    metadata:
+      labels:
+        app: woocommerce-mcp
+    spec:
+      containers:
+        - name: woocommerce-mcp
+          image: woocommerce-mcp:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3003
+          env:
+            - name: PORT
+              value: "3003"
+            - name: WOOCOMMERCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: woocommerce-secret
+                  key: WOOCOMMERCE_URL
+            - name: WOOCOMMERCE_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: woocommerce-secret
+                  key: WOOCOMMERCE_CONSUMER_KEY
+            - name: WOOCOMMERCE_CONSUMER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: woocommerce-secret
+                  key: WOOCOMMERCE_CONSUMER_SECRET
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: woocommerce-mcp
+  namespace: team-mcp
+spec:
+  selector:
+    app: woocommerce-mcp
+  ports:
+    - name: http
+      port: 3003
+      targetPort: 3003
+  type: ClusterIP

@@ -1,0 +1,145 @@
+global:
+  namespace: team-mcp
+
+environment: local
+
+# Storage Configuration
+storage:
+  storageClass: ""
+  mariadb:
+    size: 5Gi
+    accessMode: ReadWriteOnce
+  wordpress:
+    size: 5Gi
+    accessMode: ReadWriteOnce
+  postgres:
+    size: 2Gi
+    accessMode: ReadWriteOnce
+
+# Secrets Configuration
+secrets:
+  mariadb:
+    rootPassword: "zaheerkhan2026"
+    database: "wordpress"
+    user: "wordpress"
+    password: "zaheerkhan2026"
+  postgres:
+    password: "LocalDev_Pg_2026!"
+  woocommerce:
+    url: "http://wordpress"
+    consumerKey: "ck_4a6b001862381e746c8663d19205bf7e46b2f1c3"
+    consumerSecret: "cs_5040b15f7cfb5b0125b1f70bd67c336e6559f51c"
+  gateway:
+    databaseUrl: "postgresql://postgres:LocalDev_Pg_2026!@postgres:5432/team_mcp?schema=public"
+
+# MariaDB Deployment
+mariadb:
+  image:
+    repository: mariadb
+    tag: "11.4"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# WordPress Deployment
+wordpress:
+  image:
+    repository: wordpress
+    tag: php8.3-apache
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# PostgreSQL Deployment
+postgres:
+  image:
+    repository: postgres
+    tag: "16"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Gateway Service
+gateway:
+  image:
+    repository: team-mcp-gateway
+    tag: 1.0.0
+    pullPolicy: IfNotPresent
+  port: 4000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# WooCommerce MCP Service
+woocommerceMcp:
+  image:
+    repository: woocommerce-mcp
+    tag: 1.0.0
+    pullPolicy: IfNotPresent
+  port: 3003
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Inventory MCP Service
+inventoryMcp:
+  image:
+    repository: inventory-mcp
+    tag: local
+    pullPolicy: IfNotPresent
+  port: 3001
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# Support MCP Service
+supportMcp:
+  image:
+    repository: support-mcp
+    tag: 1.0.0
+    pullPolicy: IfNotPresent
+  port: 3004
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    store: "store.local"
+    gateway: "gateway.local"
+    dashboard: "dashboard.local"
+  tls: []

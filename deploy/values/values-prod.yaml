@@ -1,0 +1,57 @@
+# Production VPS Values (k3s, Cloud VPS, Hetzner, DigitalOcean)
+environment: production
+
+storage:
+  storageClass: "local-path" # Standard for k3s on VPS
+  mariadb:
+    size: 20Gi
+  wordpress:
+    size: 20Gi
+  postgres:
+    size: 10Gi
+
+ingress:
+  enabled: true
+  className: "traefik" # Default for k3s
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  hosts:
+    store: "store.yourdomain.com"
+    gateway: "mcp.yourdomain.com"
+    dashboard: "dashboard.yourdomain.com"
+  tls:
+    - secretName: platform-tls-cert
+      hosts:
+        - "store.yourdomain.com"
+        - "mcp.yourdomain.com"
+        - "dashboard.yourdomain.com"
+
+# Hardened production limits
+mariadb:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+wordpress:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+gateway:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi

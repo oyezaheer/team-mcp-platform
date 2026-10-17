@@ -1,0 +1,30 @@
+# Local Development Values (Docker Desktop, Kind, k3d, Minikube)
+environment: local
+
+storage:
+  storageClass: ""
+  mariadb:
+    size: 5Gi
+  wordpress:
+    size: 5Gi
+  postgres:
+    size: 2Gi
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    store: "store.local"
+    gateway: "gateway.local"
+    dashboard: "dashboard.local"
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

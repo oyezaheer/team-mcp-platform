@@ -1,0 +1,32 @@
+[
+  {
+    "id": "TICK-1001",
+    "customerEmail": "customer1@example.com",
+    "subject": "Order not delivered",
+    "description": "Customer reports that the order has not arrived.",
+    "status": "in_progress",
+    "priority": "high",
+    "orderId": 15,
+    "createdAt": "2026-10-12T10:00:00.000Z"
+  },
+  {
+    "id": "TICK-1002",
+    "customerEmail": "customer2@example.com",
+    "subject": "Product return request",
+    "description": "Customer wants to return a keyboard.",
+    "status": "in_progress",
+    "priority": "medium",
+    "orderId": null,
+    "createdAt": "2026-10-12T11:30:00.000Z"
+  },
+  {
+    "id": "TICK-1003",
+    "customerEmail": "customer3@example.com",
+    "subject": "Payment confirmation",
+    "description": "Customer needs confirmation that payment was received.",
+    "status": "resolved",
+    "priority": "low",
+    "orderId": 12,
+    "createdAt": "2026-10-12T13:15:00.000Z"
+  }
+]

@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-mcp
+  labels:
+    app: inventory-mcp
+    {{- include "team-mcp.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventory-mcp
+  template:
+    metadata:
+      labels:
+        app: inventory-mcp
+    spec:
+      containers:
+        - name: inventory-mcp
+          image: "{{ .Values.inventoryMcp.image.repository }}:{{ .Values.inventoryMcp.image.tag }}"
+          imagePullPolicy: {{ .Values.inventoryMcp.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.inventoryMcp.port }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.inventoryMcp.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.inventoryMcp.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.inventoryMcp.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-mcp
+  labels:
+    app: inventory-mcp
+    {{- include "team-mcp.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: inventory-mcp
+  ports:
+    - name: http
+      port: {{ .Values.inventoryMcp.port }}
+      targetPort: {{ .Values.inventoryMcp.port }}
+  type: ClusterIP

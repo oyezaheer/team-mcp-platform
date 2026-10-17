@@ -1,0 +1,66 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("MEMBER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  apiKeys   ApiKey[]
+  auditLogs AuditLog[]
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  keyHash    String    @unique
+  keyPrefix  String
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Upstream {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  description String?
+  enabled     Boolean  @default(true)
+  /// Bearer token or header credential stored server-side only, never sent to clients
+  credential  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  upstreamId String?
+  upstream   Upstream? @relation(fields: [upstreamId], references: [id], onDelete: SetNull)
+  toolName   String
+  status     String
+  durationMs Int?
+  details    Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([upstreamId, createdAt])
+}

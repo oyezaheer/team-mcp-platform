@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: support-mcp
+  labels:
+    app: support-mcp
+    {{- include "team-mcp.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: support-mcp
+  template:
+    metadata:
+      labels:
+        app: support-mcp
+    spec:
+      containers:
+        - name: support-mcp
+          image: "{{ .Values.supportMcp.image.repository }}:{{ .Values.supportMcp.image.tag }}"
+          imagePullPolicy: {{ .Values.supportMcp.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.supportMcp.port }}
+          env:
+            - name: PORT
+              value: {{ .Values.supportMcp.port | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.supportMcp.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.supportMcp.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.supportMcp.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: support-mcp
+  labels:
+    app: support-mcp
+    {{- include "team-mcp.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: support-mcp
+  ports:
+    - name: http
+      port: {{ .Values.supportMcp.port }}
+      targetPort: {{ .Values.supportMcp.port }}
+  type: ClusterIP
