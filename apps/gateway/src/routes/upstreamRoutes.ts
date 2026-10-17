@@ -135,7 +135,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
 // ---------------------------------------------------------------------------
 router.patch("/:id", async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { name, url, description, credential, enabled } = req.body ?? {};
 
     const existing = await prisma.upstream.findUnique({ where: { id } });
@@ -210,7 +210,7 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
 router.patch("/:id/toggle", async (req: AuthenticatedRequest, res) => {
   try {
     const { enabled } = req.body ?? {};
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     if (typeof enabled !== "boolean") {
       res.status(400).json({ error: "Provide enabled as true or false" });
@@ -251,7 +251,7 @@ router.patch("/:id/toggle", async (req: AuthenticatedRequest, res) => {
 // ---------------------------------------------------------------------------
 router.delete("/:id", async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const existing = await prisma.upstream.findUnique({ where: { id } });
     if (!existing) {

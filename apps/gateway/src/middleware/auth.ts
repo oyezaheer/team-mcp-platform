@@ -20,7 +20,7 @@ export async function authenticateApiKey(
 ) {
     try {
         const authorization = req.header("Authorization");
-        const match = authorization?.match(/^Bearer (tmcp_[a-f0-9]{64})$/);
+        const match = authorization?.match(/^Bearer (tmcp_[a-zA-Z0-9_]+)$/);
 
         if (!match) {
             res.status(401).json({ error: "Missing or invalid API key" });

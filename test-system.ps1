@@ -25,8 +25,8 @@ Write-Host "Connecting to Gateway pod: $gatewayPod..."
 kubectl exec $gatewayPod -n team-mcp -- node -e "
 fetch('http://127.0.0.1:4000/health')
   .then(r => r.json())
-  .then(d => console.log('✔ Gateway Health:', d))
-  .catch(e => console.error('✖ Gateway health check failed:', e.message));
+  .then(d => console.log('[OK] Gateway Health:', JSON.stringify(d)))
+  .catch(e => console.error('[FAIL] Gateway health check failed:', e.message));
 "
 
 Write-Host "`n=================================================================" -ForegroundColor Cyan
@@ -39,10 +39,10 @@ fetch('http://127.0.0.1:4000/api/mcp/tools', {
 })
 .then(r => r.json())
 .then(d => {
-  console.log('✔ Discovered Tools (' + (d.tools?.length || 0) + ' total):');
-  d.tools?.forEach(t => console.log('   - ' + t.name));
+  console.log('[OK] Discovered Tools (' + (d.tools ? d.tools.length : 0) + ' total):');
+  if (d.tools) d.tools.forEach(t => console.log('   - ' + t.name));
 })
-.catch(e => console.error('✖ Tool discovery failed:', e.message));
+.catch(e => console.error('[FAIL] Tool discovery failed:', e.message));
 "
 
 Write-Host "`n=================================================================" -ForegroundColor Cyan
@@ -55,10 +55,10 @@ fetch('http://127.0.0.1:4000/api/mcp/tools', {
 })
 .then(r => r.json())
 .then(d => {
-  console.log('✔ Member Key Authenticated Successfully.');
-  console.log('✔ Available tools to Member:', d.tools?.length);
+  console.log('[OK] Member Key Authenticated Successfully.');
+  console.log('[OK] Available tools to Member: ' + (d.tools ? d.tools.length : 0));
 })
-.catch(e => console.error('✖ Member access failed:', e.message));
+.catch(e => console.error('[FAIL] Member access failed:', e.message));
 "
 
 Write-Host "`n=================================================================" -ForegroundColor Green

@@ -35,6 +35,10 @@ app.use("/api/chat", chatRoutes);
 // Standard MCP Streamable HTTP endpoint (used by Claude Code, Cursor, MCP Inspector)
 app.use("/mcp", mcpHttpRoutes);
 
+app.get("/api/me", authenticateApiKey, (req: any, res) => {
+  res.json({ user: req.user, message: "API key authenticated successfully" });
+});
+
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",

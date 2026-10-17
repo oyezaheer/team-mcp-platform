@@ -8,8 +8,8 @@ echo  - Team MCP Gateway API: http://localhost:4000
 echo  - React Dashboard: http://localhost:5173
 echo =====================================================================
 
-start "WP Store (Port 8080)" cmd /k "kubectl port-forward svc/wordpress 8080:80 -n team-mcp"
-start "MCP Gateway (Port 4000)" cmd /k "kubectl port-forward svc/gateway 4000:4000 -n team-mcp"
+start "WP Store (Port 8080)" cmd /k "kubectl port-forward --address 127.0.0.1 svc/wordpress 8080:80 -n team-mcp"
+start "MCP Gateway (Port 4000)" cmd /k "kubectl port-forward --address 127.0.0.1 svc/gateway 4000:4000 -n team-mcp"
 cd apps\dashboard
 start "React Dashboard (Port 5173)" cmd /k "npm run dev"
 cd ..\..

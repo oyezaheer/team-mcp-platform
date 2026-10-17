@@ -167,7 +167,7 @@ router.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const { userId } = req.params;
+      const userId = String(req.params.userId);
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
         res.status(404).json({ error: "User not found" });
@@ -208,7 +208,7 @@ router.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const { userId } = req.params;
+      const userId = String(req.params.userId);
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
         res.status(404).json({ error: "User not found" });
