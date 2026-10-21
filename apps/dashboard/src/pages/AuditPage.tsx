@@ -8,7 +8,7 @@ interface AuditItem {
   toolName: string
   inputArgs?: any
   result?: any
-  success: boolean
+  status: string
   durationMs: number
   createdAt: string
   user?: {
@@ -24,6 +24,7 @@ interface AuditItem {
 
 export default function AuditPage() {
   const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('ALL')
   const limit = 25
   const [selectedLog, setSelectedLog] = useState<AuditItem | null>(null)
 
@@ -34,7 +35,7 @@ export default function AuditPage() {
     limit: number
   }>({
     queryKey: ['audit', page],
-    queryFn: () => api.audit.list(page, limit),
+    queryFn: () => api.audit.list(page, limit, statusFilter),
     refetchInterval: 15_000,
   })
 
@@ -48,6 +49,22 @@ export default function AuditPage() {
             <ScrollText size={20} className="text-indigo-400" />
             Security & Audit Logs
           </h2>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-slate-400">Filter status:</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value)
+                setPage(1)
+              }}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              <option value="ALL">All events</option>
+              <option value="DENIED">Denied</option>
+              <option value="ERROR">Errors</option>
+              <option value="SUCCESS">Successful</option>
+            </select>
+          </div>
           <p className="text-sm text-slate-400">
             Immutable log of all upstream MCP tool invocations with caller attribution and latency.
           </p>
@@ -78,46 +95,58 @@ export default function AuditPage() {
             </thead>
             <tbody className="divide-y divide-slate-700/40">
               {data?.logs && data.logs.length > 0 ? (
-                data.logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-700/20 transition">
-                    <td className="px-6 py-4 text-xs font-mono text-slate-400">
-                      {new Date(log.createdAt).toLocaleTimeString()}
-                      <div className="text-[11px] text-slate-500">{new Date(log.createdAt).toLocaleDateString()}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-white">{log.user?.name || log.user?.email || 'Anonymous'}</div>
-                      <div className="text-xs text-slate-400">{log.user?.email}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-xs bg-slate-700 px-2 py-0.5 rounded text-slate-200">
-                        {log.upstream?.name || 'Gateway Direct'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <code className="text-xs font-mono text-indigo-300 bg-indigo-950/40 px-2 py-1 rounded border border-indigo-800/30">
-                        {log.toolName}
-                      </code>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5">
-                        {log.success !== false ? (
-                          <CheckCircle2 size={15} className="text-emerald-400" />
-                        ) : (
-                          <AlertCircle size={15} className="text-rose-400" />
-                        )}
-                        <span className="text-xs font-mono text-slate-300">{log.durationMs || 0} ms</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => setSelectedLog(log)}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
-                      >
-                        Inspect
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                data.logs
+                  // .filter((log) => statusFilter === 'ALL' || log.status === statusFilter)
+                  .map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-700/20 transition">
+                      <td className="px-6 py-4 text-xs font-mono text-slate-400">
+                        {new Date(log.createdAt).toLocaleTimeString()}
+                        <div className="text-[11px] text-slate-500">{new Date(log.createdAt).toLocaleDateString()}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-white">{log.user?.name || log.user?.email || 'Anonymous'}</div>
+                        <div className="text-xs text-slate-400">{log.user?.email}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs bg-slate-700 px-2 py-0.5 rounded text-slate-200">
+                          {log.upstream?.name || 'Gateway Direct'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <code className="text-xs font-mono text-indigo-300 bg-indigo-950/40 px-2 py-1 rounded border border-indigo-800/30">
+                          {log.toolName}
+                        </code>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1.5">
+                          {log.status === 'SUCCESS' ? (
+                            <CheckCircle2 size={15} className="text-emerald-400" />
+                          ) : (
+                            <AlertCircle size={15} className="text-rose-400" />
+                          )}
+                          <span
+                            className={`text-xs font-mono font-semibold ${log.status === 'SUCCESS'
+                              ? 'text-emerald-400'
+                              : 'text-rose-400'
+                              }`}
+                          >
+                            {log.status}
+                          </span>
+                          <span className="text-xs font-mono text-slate-300">
+                            {log.durationMs || 0} ms
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => setSelectedLog(log)}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+                        >
+                          Inspect
+                        </button>
+                      </td>
+                    </tr>
+                  ))
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">

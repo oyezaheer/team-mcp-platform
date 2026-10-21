@@ -29,6 +29,23 @@ spec:
                 secretKeyRef:
                   name: gateway-secret
                   key: DATABASE_URL
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secret
+                  key: LLM_API_KEY
+            - name: LLM_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secret
+                  key: LLM_BASE_URL
+            - name: LLM_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secret
+                  key: LLM_MODEL
+            - name: DASHBOARD_ORIGIN
+              value: {{ .Values.gateway.dashboardOrigin | default (printf "http://%s" .Values.ingress.hosts.dashboard) | quote }}
           readinessProbe:
             httpGet:
               path: /health

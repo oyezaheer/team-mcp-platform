@@ -36,24 +36,49 @@ const oauth = new OAuth({
   },
 });
 
+let cachedCanonicalUrl: string | null = process.env.WOOCOMMERCE_SIGN_URL || null;
+
+async function getCanonicalUrl(): Promise<string> {
+  if (cachedCanonicalUrl) return cachedCanonicalUrl;
+  try {
+    const res = await fetch(`${storeUrl!.replace(/\/+$/, "")}/wp-json`, { signal: AbortSignal.timeout(5000) });
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      if (data?.url) {
+        cachedCanonicalUrl = String(data.url).replace(/\/+$/, "");
+        console.log(`Auto-detected WooCommerce canonical URL: ${cachedCanonicalUrl}`);
+        return cachedCanonicalUrl;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not auto-detect WordPress canonical URL:", (err as Error).message);
+  }
+  cachedCanonicalUrl = storeUrl!.replace(/\/+$/, "");
+  return cachedCanonicalUrl;
+}
+
 async function wooRequest(
   method: "GET" | "POST" | "PUT",
   endpoint: string,
   data?: Record<string, unknown>
 ) {
+  const signBase = await getCanonicalUrl();
   const baseUrl = `${storeUrl!.replace(/\/+$/, "")}/wp-json/wc/v3/${endpoint}`;
+  const signBaseUrl = `${signBase}/wp-json/wc/v3/${endpoint}`;
   const url = new URL(baseUrl);
+  const signUrlObj = new URL(signBaseUrl);
 
   // GET parameters must be included in the OAuth signature.
   if (method === "GET" && data) {
     for (const [key, value] of Object.entries(data)) {
       if (value !== undefined && value !== null) {
         url.searchParams.set(key, String(value));
+        signUrlObj.searchParams.set(key, String(value));
       }
     }
   }
 
-  const request = { url: url.toString(), method };
+  const request = { url: signUrlObj.toString(), method };
   const authorization = oauth.toHeader(oauth.authorize(request));
 
   const response = await fetch(url, {
@@ -87,10 +112,7 @@ async function wooRequest(
   return result;
 }
 
-const server = new Server(
-  { name: "woocommerce-mcp", version: "1.0.0" },
-  { capabilities: { tools: {} } }
-);
+
 
 const tools = [
   {
@@ -151,9 +173,17 @@ const tools = [
         },
         status: {
           type: "string",
-          description:
-            "Filter by order status: pending, processing, on-hold, completed, cancelled, refunded, failed",
-        },
+          enum: [
+            "pending",
+            "processing",
+            "on-hold",
+            "completed",
+            "cancelled",
+            "refunded",
+            "failed"
+          ],
+          description: "Filter by a valid WooCommerce order status."
+        }
       },
     },
   },
@@ -193,70 +223,72 @@ const tools = [
   },
 ];
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-  const input = (args ?? {}) as Record<string, unknown>;
+function createMcpServer() {
+  const server = new Server(
+    { name: "woocommerce-mcp", version: "1.0.0" },
+    { capabilities: { tools: {} } }
+  );
 
-  try {
-    let result: unknown;
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools,
+  }));
 
-    switch (name) {
-      case "list_products": {
-        const page = z.number().int().min(1).default(1).parse(input.page);
-        const perPage = z.number().int().min(1).max(100).default(10).parse(input.perPage);
-        result = await wooRequest("GET", "products", {
-          page,
-          per_page: perPage,
-        });
-        break;
-      }
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    const input = (args ?? {}) as Record<string, unknown>;
 
-      case "create_product": {
-        const data = z.object({
-          name: z.string().min(1),
-          regularPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
-          description: z.string().optional(),
-          status: z.enum(["draft", "publish"]).default("draft"),
-        }).parse(input);
+    try {
+      let result: unknown;
 
-        result = await wooRequest("POST", "products", {
-          name: data.name,
-          regular_price: data.regularPrice,
-          description: data.description ?? "",
-          status: data.status,
-        });
-        break;
-      }
+      switch (name) {
 
-      case "list_orders": {
-        const page = z.number().int().min(1).default(1).parse(input.page ?? 1);
-        const perPage = z.number().int().min(1).max(100).default(10).parse(input.perPage ?? 10);
-        const after = z.string().optional().parse(input.after);
-        const status = z.string().optional().parse(input.status);
-        result = await wooRequest("GET", "orders", {
-          page,
-          per_page: perPage,
-          ...(after ? { after } : {}),
-          ...(status ? { status } : {}),
-        });
-        break;
-      }
+        case "list_products": {
+          const page = z.number().int().min(1).default(1).parse(input.page ?? 1);
+          const perPage = z.number().int().min(1).max(100).default(10).parse(input.perPage ?? 10);
 
-      case "get_order": {
-        const data = z.object({
-          orderId: z.number().int().positive(),
-        }).parse(input);
+          const products = await wooRequest("GET", "products", {
+            page,
+            per_page: perPage,
+          }) as any[];
 
-        result = await wooRequest("GET", `orders/${data.orderId}`);
-        break;
-      }
+          result = products.map((product) => ({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            regular_price: product.regular_price,
+            sale_price: product.sale_price,
+            status: product.status,
+            stock_status: product.stock_status,
+          }));
 
-      case "update_order_status": {
-        const data = z.object({
-          orderId: z.number().int().positive(),
-          status: z.enum([
+          break;
+        }
+
+
+        case "create_product": {
+          const data = z.object({
+            name: z.string().min(1),
+            regularPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
+            description: z.string().optional(),
+            status: z.enum(["draft", "publish"]).default("draft"),
+          }).parse(input);
+
+          result = await wooRequest("POST", "products", {
+            name: data.name,
+            regular_price: data.regularPrice,
+            description: data.description ?? "",
+            status: data.status,
+          });
+          break;
+        }
+
+
+        case "list_orders": {
+          const page = z.number().int().min(1).default(1).parse(input.page ?? 1);
+          const perPage = z.number().int().min(1).max(100).default(10).parse(input.perPage ?? 10);
+          const after = z.string().optional().parse(input.after);
+          const status = z.enum([
             "pending",
             "processing",
             "on-hold",
@@ -264,39 +296,113 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             "cancelled",
             "refunded",
             "failed",
-          ]),
-        }).parse(input);
+          ]).optional().parse(input.status);
 
-        result = await wooRequest("PUT", `orders/${data.orderId}`, {
-          status: data.status,
-        });
-        break;
+          const orders = await wooRequest("GET", "orders", {
+            page,
+            per_page: perPage,
+            ...(after ? { after } : {}),
+            ...(status ? { status } : {}),
+          }) as any[];
+
+          // Return only safe fields; never expose customer details or order keys.
+          result = orders.map((order: any) => ({
+            id: order.id,
+            status: order.status,
+            date_created: order.date_created,
+            total: order.total,
+            currency: order.currency,
+            line_items: (order.line_items ?? []).map((item: any) => ({
+              name: item.name,
+              quantity: item.quantity,
+            })),
+          }));
+
+          break;
+        }
+
+
+
+        case "get_order": {
+          const data = z.object({
+            orderId: z.number().int().positive(),
+          }).parse(input);
+
+          const order = await wooRequest(
+            "GET",
+            `orders/${data.orderId}`
+          ) as any;
+
+          // Return only safe order fields.
+          result = {
+            id: order.id,
+            status: order.status,
+            date_created: order.date_created,
+            total: order.total,
+            currency: order.currency,
+            line_items: (order.line_items ?? []).map((item: any) => ({
+              name: item.name,
+              quantity: item.quantity,
+            })),
+          };
+
+          break;
+        }
+
+
+        case "update_order_status": {
+          const data = z.object({
+            orderId: z.number().int().positive(),
+            status: z.enum([
+              "pending",
+              "processing",
+              "on-hold",
+              "completed",
+              "cancelled",
+              "refunded",
+              "failed",
+            ]),
+          }).parse(input);
+
+          result = await wooRequest("PUT", `orders/${data.orderId}`, {
+            status: data.status,
+          });
+          break;
+        }
+
+        default:
+          return {
+            content: [{ type: "text", text: `Unknown tool: ${name}` }],
+            isError: true,
+          };
       }
 
-      default:
-        return {
-          content: [{ type: "text", text: `Unknown tool: ${name}` }],
-          isError: true,
-        };
-    }
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      content: [{ type: "text", text: `WooCommerce error: ${message}` }],
-      isError: true,
-    };
-  }
-});
+      return {
+        content: [{ type: "text", text: `WooCommerce error: ${message}` }],
+        isError: true,
+      };
+    }
+  });
+
+  return server;
+}
+
+
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "woocommerce-mcp" });
 });
 
+
 app.post("/mcp", async (req, res) => {
+  const server = createMcpServer();
+
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
@@ -310,11 +416,16 @@ app.post("/mcp", async (req, res) => {
     await transport.handleRequest(req, res, req.body);
   } catch (error) {
     console.error("MCP request failed:", error);
+
     if (!res.headersSent) {
       res.status(500).json({ error: "MCP request failed" });
     }
+
+    void transport.close();
+    void server.close();
   }
 });
+
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`WooCommerce MCP listening on port ${port}`);

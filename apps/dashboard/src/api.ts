@@ -78,8 +78,11 @@ export const api = {
   // Audit log
   // ---------------------------------------------------------------------------
   audit: {
-    list: (page = 1, limit = 50) =>
-      request<any>('GET', `/admin/audit?page=${page}&limit=${limit}`),
+    list: (page = 1, limit = 50, status = 'ALL') =>
+      request<any>(
+        'GET',
+        `/admin/audit?page=${page}&limit=${limit}&status=${encodeURIComponent(status)}`
+      ),
   },
 
   // ---------------------------------------------------------------------------

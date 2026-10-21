@@ -1,4 +1,3 @@
-
 import { Router } from "express";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -13,10 +12,14 @@ import {
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
 import { connectMcpClient } from "../lib/mcpClient.js";
+import { canAccessTool } from "../lib/toolPermissions.js";
 
 const router = Router();
 
-async function createGatewayServer(userId: string) {
+async function createGatewayServer(
+  userId: string,
+  role: string | undefined
+) {
   const server = new Server(
     {
       name: "team-mcp-gateway",
@@ -29,7 +32,7 @@ async function createGatewayServer(userId: string) {
     }
   );
 
-  // Discover tools from all enabled upstream MCP servers.
+  // Discover only tools permitted for this user's role.
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const upstreams = await prisma.upstream.findMany({
       where: { enabled: true },
@@ -50,9 +53,12 @@ async function createGatewayServer(userId: string) {
             const response = await client.listTools();
 
             for (const tool of response.tools) {
+              if (!canAccessTool(role, tool.name)) {
+                continue;
+              }
+
               discoveredTools.push({
                 ...tool,
-                // Namespace: upstreamId__toolName to avoid collisions
                 name: `${upstream.id}__${tool.name}`,
                 description: tool.description
                   ? `[${upstream.name}] ${tool.description}`
@@ -77,14 +83,17 @@ async function createGatewayServer(userId: string) {
         userId,
         toolName: "mcp.tools.list",
         status: "SUCCESS",
-        details: { toolCount: discoveredTools.length },
+        details: {
+          toolCount: discoveredTools.length,
+          role,
+        },
       },
     });
 
     return { tools: discoveredTools };
   });
 
-  // Execute a tool through the appropriate upstream.
+  // Enforce permissions even when a client calls a tool directly.
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const gatewayToolName = request.params.name;
     const separator = gatewayToolName.indexOf("__");
@@ -98,6 +107,44 @@ async function createGatewayServer(userId: string) {
 
     const upstreamId = gatewayToolName.slice(0, separator);
     const toolName = gatewayToolName.slice(separator + 2);
+
+
+    if (!canAccessTool(role, toolName)) {
+      const deniedAt = Date.now();
+
+      try {
+        await prisma.auditLog.create({
+          data: {
+            userId,
+            upstreamId,
+            toolName,
+            status: "DENIED",
+            durationMs: Date.now() - deniedAt,
+            details: {
+              gatewayToolName,
+              reason: "ROLE_PERMISSION_DENIED",
+              role: role ?? "UNKNOWN",
+            },
+          },
+        });
+      } catch (error) {
+        console.error(
+          `Failed to audit denied MCP tool call: ${gatewayToolName}`,
+          (error as Error).message
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Forbidden: your role cannot execute this tool",
+          },
+        ],
+        isError: true,
+      };
+    }
+
 
     const upstream = await prisma.upstream.findFirst({
       where: {
@@ -155,7 +202,11 @@ async function createGatewayServer(userId: string) {
       return result;
     } catch (error) {
       const durationMs = Date.now() - startMs;
-      console.error(`MCP tool call failed: ${gatewayToolName}`, (error as Error).message);
+
+      console.error(
+        `MCP tool call failed: ${gatewayToolName}`,
+        (error as Error).message
+      );
 
       await prisma.auditLog.create({
         data: {
@@ -186,7 +237,7 @@ async function createGatewayServer(userId: string) {
   return server;
 }
 
-// The external MCP client must provide its API key in the Authorization header.
+// Authenticate every request to the unified MCP endpoint.
 router.all(
   "/",
   authenticateApiKey,
@@ -195,7 +246,10 @@ router.all(
     let transport: StreamableHTTPServerTransport | undefined;
 
     try {
-      server = await createGatewayServer(req.user!.id);
+      server = await createGatewayServer(
+        req.user!.id,
+        req.user!.role
+      );
 
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
@@ -217,8 +271,8 @@ router.all(
         });
       }
 
-      await transport?.close().catch(() => {});
-      await server?.close().catch(() => {});
+      await transport?.close().catch(() => { });
+      await server?.close().catch(() => { });
     }
   }
 );

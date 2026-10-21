@@ -45,7 +45,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: gateway
+                name: dashboard
                 port:
-                  number: {{ .Values.gateway.port }}
+                  number: 80
 {{- end }}

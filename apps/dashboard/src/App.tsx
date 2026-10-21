@@ -6,11 +6,27 @@ import ServersPage from './pages/ServersPage'
 import UsersPage from './pages/UsersPage'
 import AuditPage from './pages/AuditPage'
 import ChatPage from './pages/ChatPage'
-import { setApiKey, clearApiKey } from './api'
+import { api, setApiKey, clearApiKey } from './api'
 
 function App() {
   const [apiKey, setKey] = useState<string>(() => localStorage.getItem('apiKey') ?? '')
   const [role, setRole] = useState<string>('')
+
+  // On page load: if a stored key exists, verify it and restore the role.
+  useEffect(() => {
+    if (apiKey) {
+      setApiKey(apiKey)
+      api.me()
+        .then((data: any) => setRole(data.user?.role ?? ''))
+        .catch(() => {
+          // Key is invalid or expired — log out
+          clearApiKey()
+          setKey('')
+          setRole('')
+        })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // run once on mount
 
   useEffect(() => {
     if (apiKey) setApiKey(apiKey)

@@ -48,6 +48,8 @@ wordpress:
       memory: 2Gi
 
 gateway:
+  # In production, override DASHBOARD_ORIGIN explicitly
+  dashboardOrigin: "https://dashboard.yourdomain.com"
   resources:
     requests:
       cpu: 250m
@@ -55,3 +57,24 @@ gateway:
     limits:
       cpu: 1000m
       memory: 1Gi
+
+dashboard:
+  image:
+    repository: team-mcp-dashboard
+    tag: 1.0.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# LLM secrets â€” override at deploy time, never commit real keys
+# helm upgrade --install ... --set secrets.llm.apiKey="sk-..." --set secrets.llm.model="gpt-4o"
+secrets:
+  llm:
+    apiKey: ""
+    baseUrl: "https://api.openai.com/v1"
+    model: "gpt-4o-mini"

@@ -234,18 +234,47 @@ router.post(
 // ---------------------------------------------------------------------------
 // GET /api/admin/audit — read audit log (admin only, paginated)
 // ---------------------------------------------------------------------------
+
 router.get(
   "/audit",
   authenticateApiKey,
   requireAdmin,
   async (req, res) => {
     try {
-      const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10));
-      const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10)));
+      const parsedPage = Number.parseInt(String(req.query.page ?? "1"), 10);
+      const parsedLimit = Number.parseInt(String(req.query.limit ?? "50"), 10);
+
+      const page = Number.isFinite(parsedPage) && parsedPage > 0
+        ? parsedPage
+        : 1;
+
+      const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.min(100, parsedLimit)
+        : 50;
+
       const skip = (page - 1) * limit;
+
+      const allowedStatuses = ["SUCCESS", "DENIED", "ERROR"] as const;
+      const requestedStatus = String(req.query.status ?? "ALL").toUpperCase();
+
+      if (
+        requestedStatus !== "ALL" &&
+        !allowedStatuses.includes(requestedStatus as typeof allowedStatuses[number])
+      ) {
+        res.status(400).json({
+          error: "Invalid status. Use ALL, SUCCESS, DENIED, or ERROR.",
+        });
+        return;
+      }
+
+      const where =
+        requestedStatus === "ALL"
+          ? {}
+          : { status: requestedStatus };
 
       const [logs, total] = await Promise.all([
         prisma.auditLog.findMany({
+          where,
           orderBy: { createdAt: "desc" },
           skip,
           take: limit,
@@ -254,15 +283,16 @@ router.get(
             upstream: { select: { id: true, name: true } },
           },
         }),
-        prisma.auditLog.count(),
+        prisma.auditLog.count({ where }),
       ]);
 
-      res.json({ logs, total, page, limit });
+      res.json({ logs, total, page, limit, status: requestedStatus });
     } catch (error) {
       console.error("Audit log fetch failed:", error);
       res.status(500).json({ error: "Failed to fetch audit log" });
     }
   }
 );
+
 
 export default router;

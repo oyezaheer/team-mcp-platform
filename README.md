@@ -1,136 +1,376 @@
-# Team MCP Platform: WooCommerce Hosting & Unified AI Gateway on Kubernetes
+# Team MCP Platform — WooCommerce Hosting & Unified AI Gateway on Kubernetes
 
-A production-grade WooCommerce hosting platform and centralized Model Context Protocol (MCP) gateway running on Kubernetes.
+A Kubernetes-based platform that centralizes multiple Model Context Protocol (MCP) servers behind a unified gateway. It provides team authentication, role-based tool access, audit logging, a React dashboard, and an AI chat interface for interacting with connected services.
 
-An administrator registers upstream MCP servers once in the dashboard, and team members can immediately access all tools through a single, aggregated Streamable HTTP MCP endpoint (compatible with Claude Code, Cursor, and MCP Inspector) and through an in-dashboard AI Chat Agent.
+Administrators manage upstream MCP servers and team access, while members discover and execute only the tools permitted by their role.
 
----
+## Table of Contents
 
-## 🏛 System Architecture Overview
+- [Architecture](#architecture)
+- [Features](#features)
+- [Technology Stack](#technology-stack)
+- [Prerequisites](#prerequisites)
+- [Local Development and Deployment](#local-development-and-deployment)
+- [Accessing the Platform](#accessing-the-platform)
+- [Authentication and Authorization](#authentication-and-authorization)
+- [Audit Logging](#audit-logging)
+- [Verification and Demo](#verification-and-demo)
+- [Production Deployment](#production-deployment)
+- [Security Considerations](#security-considerations)
+- [Troubleshooting](#troubleshooting)
 
-```
-                        +----------------------------+
-                        |  External MCP Clients      |
-                        | (Claude Code, Cursor, IDE) |
-                        +--------------+-------------+
-                                       |
-                                       v (Streamable HTTP /mcp with User API Key)
-+-----------------------------------------------------------------------------------+
-| Kubernetes Cluster (`team-mcp` namespace)                                         |
-|                                                                                   |
-|   +-----------------------+                    +------------------------------+   |
-|   |   React Dashboard     |                    |       PostgreSQL 16          |   |
-|   | (Admin / Member UI)   |                    | (Users, Keys, Upstreams,     |   |
-|   +-----------+-----------+                    |  Audit Logs)                 |   |
-|               |                                +--------------+---------------+   |
-|               v                                               ^                   |
-|   +-----------------------------------------------------------+---------------+   |
-|   |                      Team MCP Gateway (Node.js/Express)                   |   |
-|   |  - Unified MCP Endpoint: /mcp                                             |   |
-|   |  - REST Tool Proxy: /api/mcp/tools                                        |   |
-|   |  - Chat Agent Loop: /api/chat                                             |   |
-|   |  - Upstream Isolation & Collision Namespacing: ${upstreamId}__${tool}      |   |
-|   |  - Server-side Credential Injection & Audit Logging                       |   |
-|   +-------+-----------------------------+-----------------------------+-------+   |
-|           |                             |                             |           |
-|           v                             v                             v           |
-|  +--------------------+      +--------------------+      +--------------------+   |
-|  |  WooCommerce MCP   |      |   Inventory MCP    |      |    Support MCP     |   |
-|  |  (Custom Server)   |      |  (Port 3001 /mcp)  |      |  (Port 3004 /mcp)  |   |
-|  +--------+-----------+      +--------------------+      +--------------------+   |
-|           |                                                                       |
-|           v (OAuth 1.0a HMAC-SHA1)                                                |
-|  +--------------------+                                                           |
-|  |  WordPress + Woo   | <---> [ MariaDB 11.4 ]                                    |
-|  |  Storefront        |       (Persistent Volume)                                 |
-|  +--------------------+                                                           |
-+-----------------------------------------------------------------------------------+
-```
+## Architecture
 
----
+```text
+                    External MCP Clients
+                  Claude Code / Cursor / IDEs
+                              |
+                              v
+                     Unified MCP Endpoint
+                         /mcp
+                              |
+               +--------------+--------------+
+               |                             |
+               v                             v
+       Team MCP Gateway                React Dashboard
+       Node.js / Express               Admin / Member UI
+               |
+       +-------+---------+
+       |                 |
+       v                 v
+  Tool Authorization   Audit Logging
+       |                 |
+       +--------+--------+
+                |
+                v
+         Upstream MCP Servers
+          /       |       \
+         v        v        v
+   WooCommerce  Inventory  Support
+         |
+         v
+   WordPress / WooCommerce
+         |
+         v
+       MariaDB
 
-## 🚀 Quickstart: Local Kubernetes Setup
-
-### Prerequisites
-* Docker Desktop (with Kubernetes enabled), Minikube, Kind, or k3d.
-* `kubectl` and `helm` (v3+).
-
-### 1. Install & Deploy via Helm
-
-Deploy the entire platform with one command using the local values file:
-
-```bash
-# Add namespace if not present
-kubectl create namespace team-mcp --dry-run=client -o yaml | kubectl apply -f -
-
-# Deploy via Helm
-helm upgrade --install team-mcp ./deploy/helm/team-mcp-platform \
-  -n team-mcp \
-  -f ./deploy/values/values-local.yaml
+   PostgreSQL: Users, API keys, upstreams,
+               and audit records
 ```
 
-### 2. Verify Workload Health
-Ensure all pods are in `Running` and `Ready` state:
+The gateway aggregates upstream tools and namespaces them using the upstream identifier to avoid naming collisions. It authenticates requests, enforces role permissions, forwards authorized calls, and records audit events.
 
-```bash
+## Features
+
+### Unified MCP Gateway
+- Centralized Streamable HTTP MCP endpoint at `/mcp`.
+- REST API for discovering and executing tools.
+- Tool namespacing to prevent collisions between upstream servers.
+- Server-side forwarding of upstream credentials.
+- Support for multiple upstream MCP servers.
+
+### Authentication and Role-Based Access Control
+- API-key authentication for administrators and members.
+- Admin access to all available tools.
+- Member access restricted to read-only tools.
+- Restricted tools filtered from member tool discovery.
+- Direct execution of restricted tools rejected by authorization checks.
+- Invalid or revoked API keys rejected.
+
+### Audit Logging
+- Records tool execution attempts and outcomes.
+- Captures tool name, user attribution, timestamp, duration, and status.
+- Supports audit filtering by status: `ALL`, `SUCCESS`, `DENIED`, and `ERROR`.
+- Provides paginated audit records through the dashboard.
+
+### Dashboard and AI Chat
+- React-based dashboard for managing upstream servers and users.
+- Tool discovery and execution through the gateway.
+- AI chat interface for interacting with connected tools.
+- Audit log viewer with status filters and pagination.
+
+### Kubernetes Deployment
+- Containerized gateway and dashboard.
+- Kubernetes deployments and services.
+- Helm-based deployment configuration.
+- PostgreSQL persistence for platform data.
+
+## Technology Stack
+
+| Component | Technology |
+|---|---|
+| Backend gateway | Node.js, TypeScript, Express |
+| MCP integration | Model Context Protocol SDK |
+| Frontend | React, TypeScript, Vite |
+| Database | PostgreSQL |
+| Store integration | WooCommerce, WordPress, MariaDB |
+| Containers | Docker |
+| Orchestration | Kubernetes |
+| Deployment configuration | Helm |
+| API testing | PowerShell, HTTP requests, Node.js scripts |
+
+## Prerequisites
+
+Install the following tools:
+
+- Node.js and npm
+- Docker Desktop
+- Kubernetes enabled in Docker Desktop, or another Kubernetes cluster
+- `kubectl`
+- Helm, if deploying through the Helm chart
+
+Check the installations:
+
+```powershell
+node --version
+npm --version
+docker --version
+kubectl version --client
+helm version
+```
+
+## Local Development and Deployment
+
+### 1. Clone or open the project
+
+```powershell
+cd C:\Users\<your-user>\team-mcp-platform
+```
+
+### 2. Build the gateway image
+
+```powershell
+docker build -t team-mcp-gateway:1.0.10 -f apps/gateway/Dockerfile apps/gateway
+```
+
+### 3. Build the dashboard image
+
+```powershell
+docker build -t team-mcp-dashboard:1.0.0 -f apps/dashboard/Dockerfile apps/dashboard
+```
+
+Use the image tags configured by your Kubernetes deployment. If you change a tag, update the deployment accordingly.
+
+### 4. Deploy or update the gateway
+
+For the existing `team-mcp` namespace:
+
+```powershell
+kubectl set image deployment/gateway gateway=team-mcp-gateway:1.0.10 -n team-mcp
+
+kubectl rollout status deployment/gateway -n team-mcp
+```
+
+### 5. Deploy or update the dashboard
+
+```powershell
+kubectl rollout restart deployment/dashboard -n team-mcp
+
+kubectl rollout status deployment/dashboard -n team-mcp
+```
+
+### 6. Check deployment health
+
+```powershell
 kubectl get pods -n team-mcp
+kubectl get deployments -n team-mcp
+kubectl get services -n team-mcp
 ```
-All workloads (`gateway`, `mariadb`, `postgres`, `wordpress`, `woocommerce-mcp`, `inventory-mcp`, `support-mcp`) feature dedicated `startupProbe`, `readinessProbe`, and `livenessProbe` checks with persistent storage volume recovery.
+
+Ensure the relevant pods are running and ready before testing the application.
+
+> **Note:** The commands above update the existing gateway and dashboard deployments. A fresh installation also requires the appropriate Kubernetes resources, database, configuration, secrets, and upstream services. Follow the manifests and Helm values present in this repository for a new environment.
+
+## Accessing the Platform
+
+For the current local development setup:
+
+| Component | Address |
+|---|---|
+| Dashboard | `http://localhost:8081` |
+| Dashboard audit page | `http://localhost:8081/audit` |
+| Gateway health endpoint | `http://localhost:14000/health` |
+| REST tool discovery | `http://localhost:14000/api/mcp/tools` |
+| Unified MCP endpoint | `http://localhost:14000/mcp` |
+
+The gateway uses a local port-forward for access on port `14000`.
+
+Start it in a dedicated PowerShell terminal and leave that terminal open:
+
+```powershell
+kubectl port-forward -n team-mcp deployment/gateway 14000:4000
+```
+
+The dashboard address may differ if you change its port-forward, service, or ingress configuration.
+
+## Authentication and Authorization
+
+Requests to protected gateway endpoints use a bearer API key.
+
+Example PowerShell request:
+
+```powershell
+$headers = @{
+    Authorization = "Bearer $env:MEMBER_KEY"
+}
+
+Invoke-RestMethod `
+    -Uri "http://127.0.0.1:14000/api/mcp/tools" `
+    -Headers $headers
+```
+
+Set `MEMBER_KEY` and `ADMIN_KEY` in your local environment using the valid keys issued by the application. Do not commit actual keys to Git.
+
+### Role permissions
+
+| Capability | Admin | Member |
+|---|---|---|
+| Discover available tools | All permitted tools | Read-only tools |
+| Execute read-only tools | Yes | Yes |
+| Execute restricted write tools | Yes, subject to upstream permissions | No |
+| Manage team users and upstreams | Authorized admin actions | No |
+| View administrative audit logs | Yes | No |
+
+The gateway must enforce permissions on the server. Hiding a tool in the frontend alone is not sufficient authorization.
+
+## Audit Logging
+
+The audit dashboard displays execution events and allows administrators to filter by outcome.
+
+Supported status filters:
+
+- `ALL` — all audit outcomes
+- `SUCCESS` — successful operations
+- `DENIED` — authorization-denied operations
+- `ERROR` — failed operations
+
+Audit records should include the relevant user, tool, timestamp, execution duration, and outcome.
+
+To inspect gateway logs:
+
+```powershell
+kubectl logs deployment/gateway -n team-mcp --tail=100
+```
+
+To inspect audit records in PostgreSQL, connect using the database credentials configured for your environment and query the `AuditLog` table.
+
+## Verification and Demo
+
+The repository includes an end-to-end verification script at `deploy/verify-e2e.js`.
+
+### 1. Configure the test environment
+
+In PowerShell, use the valid API keys already issued by your deployment:
+
+```powershell
+$env:GATEWAY_URL = "http://127.0.0.1:14000"
+$env:ADMIN_KEY = "<your-admin-api-key>"
+$env:MEMBER_KEY = "<your-member-api-key>"
+```
+
+Replace the placeholders in your terminal with your actual credentials. Never commit these values to the repository.
+
+### 2. Run the verification script
+
+```powershell
+node .\deploy\verify-e2e.js
+```
+
+The existing script checks gateway health, admin tool discovery, member tool discovery, and rejection of an invalid API key. These checks do not by themselves verify every assignment requirement.
+
+### 3. Demonstrate admin and member access
+
+1. Open the dashboard and authenticate using an administrator API key.
+2. Show the available tools, including permitted write operations.
+3. Authenticate as a member and show the restricted read-only tool list.
+4. Demonstrate that a direct request for a restricted tool is denied.
+5. Open the audit page and show the resulting `DENIED` event.
+6. Show the status filter and pagination.
+
+Use a safe test environment when demonstrating write operations against WooCommerce.
+
+### 4. External MCP client configuration
+
+Configure a compatible MCP client to connect to:
+
+```text
+http://localhost:14000/mcp
+```
+
+Include the appropriate authorization header:
+
+```text
+Authorization: Bearer <your-api-key>
+```
+
+The URL and authentication configuration must match the environment where the gateway is running.
+
+## Production Deployment
+
+For a production deployment, configure the Kubernetes cluster, ingress, persistent storage, TLS, resource limits, and secrets before exposing the platform publicly.
+
+If the repository contains the Helm chart and production values, inspect them before deploying:
+
+```powershell
+Get-ChildItem .\deploy\helm
+Get-ChildItem .\deploy\values
+```
+
+Use the chart's documented configuration keys for the production deployment. Configure domain names and TLS certificates for the storefront, gateway, and dashboard as appropriate for your environment.
+
+Do not assume that a production deployment is ready merely because the application works on localhost.
+
+## Security Considerations
+
+- Keep API keys, database passwords, WooCommerce credentials, and LLM API keys out of source control.
+- Use Kubernetes Secrets or an appropriate external secret manager.
+- Rotate credentials that have been exposed.
+- Enforce authorization on every protected tool-execution path.
+- Reject revoked and invalid API keys.
+- Avoid logging bearer tokens, passwords, or other secrets.
+- Restrict access to administrative endpoints and audit records.
+- Use HTTPS for production traffic.
+- Apply least-privilege permissions to upstream credentials.
+- Configure resource limits and health probes appropriate to each workload.
+- Back up persistent database data and test restoration procedures.
+
+## Troubleshooting
+
+### Gateway connection fails
+
+Check the gateway pod:
+
+```powershell
+kubectl get pods -n team-mcp
+kubectl logs deployment/gateway -n team-mcp --tail=100
+```
+
+If the port-forward is not running, restart it:
+
+```powershell
+kubectl port-forward -n team-mcp deployment/gateway 14000:4000
+```
+
+### HTTP 401 Unauthorized
+
+Check that the correct, active API key is configured. Invalid, revoked, or incorrectly supplied keys should not authenticate.
+
+### HTTP 403 Forbidden
+
+The authenticated user may not have permission to execute the requested tool. Check the role and the server-side tool authorization rules.
+
+### Upstream tool fails
+
+Check whether the upstream MCP server is healthy, enabled, reachable, and configured with valid credentials. Inspect the gateway logs for upstream errors.
+
+### Dashboard changes are not visible
+
+Confirm that the dashboard image was rebuilt and that the deployment rollout completed. Refresh the page after the new version is available.
 
 ---
 
-## 🌐 Production VPS Deployment (k3s / Cloud)
+## Project Status
 
-Deploying to a single VPS or cloud-managed k3s node uses the **exact same Helm chart** with zero code modifications:
+The current implementation includes the gateway, dashboard, role-based tool filtering and enforcement, audit logging, and Kubernetes deployment work. Verification should be performed against the current deployment and the actual configuration in this repository.
 
-```bash
-helm upgrade --install team-mcp ./deploy/helm/team-mcp-platform \
-  -n team-mcp \
-  -f ./deploy/values/values-prod.yaml \
-  --set ingress.hosts.store="store.yourdomain.com" \
-  --set ingress.hosts.gateway="mcp.yourdomain.com" \
-  --set ingress.hosts.dashboard="dashboard.yourdomain.com"
-```
-
-### What Changes in Production (`values-prod.yaml`):
-1. **StorageClass**: Uses `local-path` (k3s standard) or cloud CSI (e.g. `gp3`, `civo-volume`) instead of local hostpath.
-2. **Ingress Controller**: Uses `traefik` (built into k3s) with automatic TLS certificate provisioning via `cert-manager` and Let's Encrypt.
-3. **Resource Guardrails**: Hardened requests and limits (up to 2000m CPU / 2Gi memory for WooCommerce/MariaDB).
-4. **Secret Management**: Passwords and OAuth secrets injected via Kubernetes Secrets or external secret operators (HashiCorp Vault / AWS Secrets Manager).
-
----
-
-## 🧪 Definition of Done: Verification Guide
-
-### 1. Store Checkout Flow
-1. Access the storefront at `http://localhost:8080` (or `http://store.local` via Ingress).
-2. Browse products, add an item to the shopping cart, and proceed to checkout.
-3. Select **Cash on Delivery (COD)** and complete the order.
-4. Log into `/wp-admin` (`admin` / `zaheerkhan2026`) and verify the order is marked `Processing`.
-
-### 2. Chat Agent (User A - Admin)
-1. Open the dashboard at `http://localhost:5173` (or `http://dashboard.local`).
-2. Log in with User A API Key: `tmcp_admin_secret_key_1234567890abcdef`.
-3. In the Chat tab, enter:
-   > *"Create a new product named 'Vintage Leather Jacket' with price 89.99."*
-4. The agent executes `create_product` through the gateway. Refresh the storefront to see the product live.
-5. Place an order for this product on the store, then ask the agent:
-   > *"What orders were placed today?"*
-6. The agent calls `list_orders` and returns your order details.
-
-### 3. External MCP Client (User B - Member)
-Connect Claude Code, Cursor, or MCP Inspector to the gateway:
-* **Transport**: `Streamable HTTP`
-* **URL**: `http://localhost:4000/mcp`
-* **Headers**: `Authorization: Bearer tmcp_member_secret_key_1234567890abcdef`
-
-#### Cross-Server Execution:
-Run a prompt requiring tools from two distinct servers:
-> *"Check the inventory stock for product 12 and verify if there are any open support tickets for this customer."*
-* Gateway routes tool calls to `inventory-mcp` (`check_stock`) and `support-mcp` (`get_customer_tickets`).
-
-### 4. Team & Access Control
-1. **Key Revocation**: In the dashboard, click **Revoke** on User B's key. Their next MCP request is immediately rejected with HTTP `401 Unauthorized`.
-2. **Upstream Disabling**: Toggle an upstream server to **Disabled** in the Servers tab. Its tools immediately vanish from both the chat agent and external MCP clients.
-3. **Pod Failure Resilience**: Terminate a pod (`kubectl delete pod -l app=support-mcp -n team-mcp`). The gateway handles the dead upstream gracefully with clear timeout responses, while other upstreams continue functioning uninterrupted.
-4. **Audit Trail**: Open the **Audit Log** tab to inspect every single tool call with timestamps, calling user attribution, target upstream, execution duration (ms), and outcome (`SUCCESS`/`ERROR`).
+For additional setup details, consult the accompanying `SYSTEM_DESIGN.md` and `THREAT_MODEL.md` documents.

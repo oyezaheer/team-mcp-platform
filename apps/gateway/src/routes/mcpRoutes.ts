@@ -6,6 +6,7 @@ import {
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
 import { connectMcpClient } from "../lib/mcpClient.js";
+import { canAccessTool } from "../lib/toolPermissions.js";
 
 const router = Router();
 
@@ -38,12 +39,16 @@ router.get("/tools", async (req: AuthenticatedRequest, res) => {
             try {
               const response = await client.listTools();
 
-              return response.tools.map((tool: any) => ({
-                ...tool,
-                name: `${upstream.id}__${tool.name}`,
-                upstreamId: upstream.id,
-                upstreamName: upstream.name,
-              }));
+              return response.tools
+                .filter((tool: any) =>
+                  canAccessTool(req.user?.role, tool.name)
+                )
+                .map((tool: any) => ({
+                  ...tool,
+                  name: `${upstream.id}__${tool.name}`,
+                  upstreamId: upstream.id,
+                  upstreamName: upstream.name,
+                }));
             } finally {
               await client.close();
               await transport.close();
@@ -69,6 +74,14 @@ router.get("/tools", async (req: AuthenticatedRequest, res) => {
 // ---------------------------------------------------------------------------
 // POST /api/mcp/tools/call — execute a tool via its gateway-qualified name
 // ---------------------------------------------------------------------------
+
+// if (!canAccessTool(req.user?.role, toolName)) {
+//   res.status(403).json({
+//     error: "Forbidden: your role cannot execute this tool",
+//   });
+//   return;
+// }
+
 router.post("/tools/call", async (req: AuthenticatedRequest, res) => {
   const { name, arguments: toolArguments = {} } = req.body ?? {};
 
@@ -82,6 +95,33 @@ router.post("/tools/call", async (req: AuthenticatedRequest, res) => {
   const separator = name.indexOf("__");
   const upstreamId = name.slice(0, separator);
   const toolName = name.slice(separator + 2);
+
+
+  if (!canAccessTool(req.user?.role, toolName)) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        toolName,
+        status: "DENIED",
+        durationMs: 0,
+        details: {
+          gatewayToolName: name,
+          reason: "role_forbidden",
+          role: req.user?.role,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to audit denied tool call:", error);
+  }
+
+  res.status(403).json({
+    error: "Forbidden: your role cannot execute this tool",
+  });
+  return;
+
+}
 
   if (!toolName) {
     res.status(400).json({ error: "Invalid tool name" });
@@ -155,5 +195,4 @@ router.post("/tools/call", async (req: AuthenticatedRequest, res) => {
     });
   }
 });
-
 export default router;

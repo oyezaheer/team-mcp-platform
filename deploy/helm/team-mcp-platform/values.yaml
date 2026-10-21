@@ -17,20 +17,26 @@ storage:
     accessMode: ReadWriteOnce
 
 # Secrets Configuration
+# WARNING: Do not commit real credentials here for production.
+# Override these via --set or a separate secrets file at deploy time.
 secrets:
   mariadb:
-    rootPassword: "zaheerkhan2026"
+    rootPassword: ""
     database: "wordpress"
     user: "wordpress"
-    password: "zaheerkhan2026"
+    password: ""
   postgres:
-    password: "LocalDev_Pg_2026!"
+    password: ""
   woocommerce:
     url: "http://wordpress"
-    consumerKey: "ck_4a6b001862381e746c8663d19205bf7e46b2f1c3"
-    consumerSecret: "cs_5040b15f7cfb5b0125b1f70bd67c336e6559f51c"
+    consumerKey: ""
+    consumerSecret: ""
   gateway:
-    databaseUrl: "postgresql://postgres:LocalDev_Pg_2026!@postgres:5432/team_mcp?schema=public"
+    databaseUrl: ""
+  llm:
+    apiKey: ""
+    baseUrl: "https://api.openai.com/v1"
+    model: "gpt-4o-mini"
 
 # MariaDB Deployment
 mariadb:
@@ -81,6 +87,8 @@ gateway:
     tag: 1.0.0
     pullPolicy: IfNotPresent
   port: 4000
+  # Overrides DASHBOARD_ORIGIN env var. Defaults to http://<ingress.hosts.dashboard>
+  # dashboardOrigin: "https://dashboard.yourdomain.com"
   resources:
     requests:
       cpu: 100m
@@ -88,6 +96,20 @@ gateway:
     limits:
       cpu: 500m
       memory: 512Mi
+
+# Dashboard (React + nginx)
+dashboard:
+  image:
+    repository: team-mcp-dashboard
+    tag: 1.0.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
 
 # WooCommerce MCP Service
 woocommerceMcp:
