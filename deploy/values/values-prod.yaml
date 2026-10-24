@@ -52,7 +52,7 @@ wordpress:
 gateway:
   image:
     repository: ghcr.io/oyezaheer/team-mcp-gateway
-    tag: "1.0.17"
+    tag: "1.0.18"
     pullPolicy: IfNotPresent
   dashboardOrigin: "https://dashboard.yourdomain.com"
   resources:

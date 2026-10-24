@@ -5,7 +5,7 @@
 | Component | Responsibility |
 |---|---|
 | Gateway (`apps/gateway`) | MCP client to every upstream, MCP server to every user. API-key auth, role checks, tool aggregation, routing, audit log, chat agent. |
-| Dashboard (`apps/dashboard`) | React UI behind nginx. Servers, team and keys, audit log, chat, "My API Key". |
+| Dashboard (`apps/dashboard`) | React UI behind nginx. Servers and their tools, team and keys, audit log, chat, "My API Key". |
 | WooCommerce MCP (`services/woocommerce-mcp`) | Our own MCP server (Streamable HTTP) exposing products and orders as tools. |
 | Inventory MCP, Support MCP | Two further upstreams, showing the gateway is not WooCommerce-specific. |
 | WordPress + WooCommerce, MariaDB | The store, with persistent volumes. |
@@ -31,7 +31,7 @@ Every tool is exposed as `<upstreamId>__<toolName>`. The upstream id is a unique
 - Tool discovery runs per upstream in parallel with its own timeout (10 s REST, 8 s chat). A failure is caught and that upstream contributes zero tools. Other servers are unaffected.
 - Tool calls have a 15 s timeout, use an `AbortController`, reject redirects, and return a clear error (HTTP 502 on REST, an MCP error on `/mcp`). The failure is audited as `ERROR`.
 - The dashboard marks a server `Unreachable` when it can't list tools. We verified this by deleting the Support pod: the other two servers kept working.
-- The LLM call has a 90 s timeout. The agent loop is capped at 6 rounds and refuses to repeat an identical tool call.
+- The LLM request has a 90 s timeout. The agent loop is capped at 6 rounds and refuses to repeat an identical tool call. The chat error text for LLM failures is generic ("local AI model") and does not distinguish timeouts from network errors.
 
 ## How the WooCommerce MCP talks to the store, and why
 
@@ -51,7 +51,7 @@ It uses the **WooCommerce REST API** with a consumer key and secret held in a Ku
 
 ## Chat agent
 
-`POST /api/chat` authenticates the caller, builds the tool list from enabled upstreams filtered by role, and runs an OpenAI-compatible tool loop against a local Ollama model (`qwen2.5:3b`). Tool calls are executed with the caller's user id, so audit rows carry the right person and are marked `source: chat_agent`. The UI shows each tool call and its arguments, but not raw results.
+`POST /api/chat` authenticates the caller, builds the tool list from enabled upstreams filtered by role, and runs an OpenAI-compatible tool loop against the configured LLM endpoint. The provider, model and key are Helm values (the key lives in a Kubernetes Secret). The demo used a free hosted Gemini model; a local Ollama model also works but is slow on a laptop. Tool calls are executed with the caller's user id, so audit rows carry the right person and are marked `source: chat_agent`. The tool list is rebuilt on every request, so a disabled server's tools disappear immediately. The UI shows each tool call and its arguments, but not raw results.
 
 ## Kubernetes layout
 
@@ -72,7 +72,9 @@ It uses the **WooCommerce REST API** with a consumer key and secret held in a Ku
 | Storage | default | `local-path` |
 | Images | local | registry-qualified |
 | Secrets | file outside the repo | file or secret manager at install time |
-| LLM | Ollama on the laptop | hosted OpenAI-compatible endpoint |
+| LLM | any OpenAI-compatible endpoint, set in the secrets file | same chart value, a hosted endpoint |
+
+The production values were verified by rendering them with `helm template`. They were not deployed to a VPS.
 
 Upgrades use `helm upgrade`, and `helm rollback <revision>` reverts a release.
 
@@ -81,6 +83,6 @@ Upgrades use `helm upgrade`, and `helm rollback <revision>` reverts a release.
 - **Connection per call.** The gateway connects to an upstream, calls, and closes. It is simple and stateless, with no sessions to leak, at the cost of extra latency per call. A pooled client is the next step.
 - **Tool permissions by bare name.** A built-in read-only allowlist is easy to reason about, but it matches the tool name regardless of server. A per-upstream permission table in the database would be more precise.
 - **Single gateway replica.** Sessions are not shared. Scaling out would need a shared session store.
-- **Small local model.** It satisfies the "tool loop works" goal, but it is slow (about 50 to 90 s per answer) and its reasoning is weak.
+- **Model quality and latency depend on the provider.** The provider is a Helm value. A local 3B model was too slow on a laptop (50 to 90 s per answer) and starved the cluster of CPU while recording, so the demo used a hosted model. Small models can also answer from a different tool's data when the right tool is unavailable.
 - **Manual store setup.** WordPress and WooCommerce setup is done by hand. A WP-CLI init Job would make it repeatable.
 - **First admin.** It is created by `deploy/bootstrap.ps1`, not by an in-app flow.

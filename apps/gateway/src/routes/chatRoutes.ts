@@ -212,7 +212,7 @@ Use available tools for factual data. Never invent dates, tool results, or order
 For questions about today's orders, use the current date above to construct the date filter.
 Do not repeat an identical tool call after receiving its result.
 Summarize successful tool results accurately.
-Never reveal customer names, addresses, email addresses, phone numbers, order keys, or payment URLs.`,
+If no available tool can answer the question, say so. Never present data from one tool as if it came from a different system. The inventory system is separate from store products.`,
       },
       ...messages,
     ];

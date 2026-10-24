@@ -86,7 +86,7 @@ postgres:
 gateway:
   image:
     repository: team-mcp-gateway
-    tag: 1.0.17
+    tag: 1.0.18
     pullPolicy: IfNotPresent
   port: 4000
   # Overrides DASHBOARD_ORIGIN env var. Defaults to http://<ingress.hosts.dashboard>
