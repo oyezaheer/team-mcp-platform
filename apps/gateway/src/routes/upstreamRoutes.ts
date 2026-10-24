@@ -7,6 +7,8 @@ import {
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { encryptCredential, decryptCredential } from "../lib/credentialCrypto.js";
+import { validateUpstreamUrl } from "../lib/upstreamUrl.js";
 
 const router = Router();
 
@@ -42,7 +44,12 @@ router.get("/", async (_req: AuthenticatedRequest, res) => {
         try {
           const { client, transport } = await connectMcpClient(
             upstream.url,
-            undefined,
+            decryptCredential(
+              (await prisma.upstream.findUnique({
+                where: { id: upstream.id },
+                select: { credential: true },
+              }))?.credential ?? null
+            ),
             5_000
           );
           const toolsRes = await client.listTools();
@@ -83,13 +90,19 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
       return;
     }
 
+
     let parsedUrl: URL;
+
     try {
-      parsedUrl = new URL(url);
+      parsedUrl = await validateUpstreamUrl(url.trim());
     } catch {
-      res.status(400).json({ error: "Invalid upstream URL" });
+      res.status(400).json({
+        error:
+          "Invalid upstream URL. Use HTTP or HTTPS with a publicly routable address.",
+      });
       return;
     }
+
 
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       res
@@ -106,7 +119,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
           typeof description === "string" ? description.trim() : null,
         credential:
           typeof credential === "string" && credential.trim()
-            ? credential.trim()
+            ? encryptCredential(credential.trim())
             : null,
       },
     });
@@ -144,22 +157,27 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
       return;
     }
 
+
     // Validate URL if provided
     let parsedUrl: URL | undefined;
+
     if (url !== undefined) {
-      try {
-        parsedUrl = new URL(url);
-      } catch {
+      if (typeof url !== "string" || !url.trim()) {
         res.status(400).json({ error: "Invalid upstream URL" });
         return;
       }
-      if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-        res
-          .status(400)
-          .json({ error: "Upstream URL must use HTTP or HTTPS" });
+
+      try {
+        parsedUrl = await validateUpstreamUrl(url.trim());
+      } catch {
+        res.status(400).json({
+          error:
+            "Invalid upstream URL. Use HTTP or HTTPS with a publicly routable address.",
+        });
         return;
       }
     }
+
 
     const updated = await prisma.upstream.update({
       where: { id },
@@ -170,17 +188,17 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
         ...(parsedUrl ? { url: parsedUrl.toString() } : {}),
         ...(description !== undefined
           ? {
-              description:
-                typeof description === "string" ? description.trim() : null,
-            }
+            description:
+              typeof description === "string" ? description.trim() : null,
+          }
           : {}),
         ...(credential !== undefined
           ? {
-              credential:
-                typeof credential === "string" && credential.trim()
-                  ? credential.trim()
-                  : null,
-            }
+            credential:
+              typeof credential === "string" && credential.trim()
+                ? encryptCredential(credential.trim())
+                : null,
+          }
           : {}),
         ...(typeof enabled === "boolean" ? { enabled } : {}),
       },

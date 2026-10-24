@@ -7,6 +7,7 @@ import UsersPage from './pages/UsersPage'
 import AuditPage from './pages/AuditPage'
 import ChatPage from './pages/ChatPage'
 import { api, setApiKey, clearApiKey } from './api'
+import MyKeyPage from './pages/MyKeyPage'
 
 function App() {
   const [apiKey, setKey] = useState<string>(() => localStorage.getItem('apiKey') ?? '')
@@ -57,6 +58,7 @@ function App() {
           <Route path="/users" element={<UsersPage />} />
           <Route path="/audit" element={<AuditPage />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/my-key" element={<MyKeyPage />} />
         </Routes>
       </Layout>
     </BrowserRouter>

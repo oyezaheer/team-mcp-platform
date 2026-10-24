@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Server, Users, ScrollText, MessageSquare, LogOut } from 'lucide-react'
+import { Server, Users, ScrollText, MessageSquare, LogOut, KeyRound } from 'lucide-react'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -38,6 +38,7 @@ export default function Layout({ children, onLogout, role }: LayoutProps) {
           {navItem('/chat', <MessageSquare size={16} />, 'Chat Agent')}
           {role === 'ADMIN' && navItem('/users', <Users size={16} />, 'Team')}
           {role === 'ADMIN' && navItem('/audit', <ScrollText size={16} />, 'Audit Log')}
+          {navItem('/my-key', <KeyRound size={16} />, 'My API Key')}
         </nav>
 
         <button

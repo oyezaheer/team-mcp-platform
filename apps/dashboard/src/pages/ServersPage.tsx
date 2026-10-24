@@ -58,7 +58,24 @@ export default function ServersPage({ role }: ServersPageProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<any>({})
 
-  const upstreams = data?.upstreams ?? []
+  const fromTools = Object.values(
+    (toolData?.tools ?? []).reduce((acc: Record<string, any>, t: any) => {
+      acc[t.upstreamId] ??= { id: t.upstreamId, name: t.upstreamName, url: '', enabled: true, status: 'Connected', toolCount: 0 }
+      acc[t.upstreamId].toolCount += 1
+      return acc
+    }, {})
+  )
+  const upstreams = isAdmin ? (data?.upstreams ?? []) : fromTools
+
+  const { data: toolData } = useQuery({
+    queryKey: ['tools'],
+    queryFn: () => api.tools.list(),
+    refetchInterval: 30_000,
+  })
+  const toolsByUpstream: Record<string, any[]> = {}
+  for (const t of toolData?.tools ?? []) {
+    ; (toolsByUpstream[t.upstreamId] ??= []).push(t)
+  }
 
   const startEdit = (u: any) => {
     setEditingId(u.id)
@@ -179,6 +196,21 @@ export default function ServersPage({ role }: ServersPageProps) {
                     </div>
                     <p className="text-xs text-slate-500 font-mono truncate">{u.url}</p>
                     {u.description && <p className="text-sm text-slate-400 mt-1">{u.description}</p>}
+                    {(toolsByUpstream[u.id]?.length ?? 0) > 0 && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-indigo-400 cursor-pointer">
+                          Show tools ({toolsByUpstream[u.id].length})
+                        </summary>
+                        <ul className="mt-2 space-y-1">
+                          {toolsByUpstream[u.id].map((t: any) => (
+                            <li key={t.name} className="text-xs text-slate-300">
+                              <code className="text-indigo-300">{t.name.split('__').slice(1).join('__')}</code>
+                              {t.description ? <span className="text-slate-500"> – {t.description}</span> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                   </div>
 
                   {isAdmin && (

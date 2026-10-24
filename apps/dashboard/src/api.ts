@@ -92,4 +92,7 @@ export const api = {
     send: (messages: Array<{ role: string; content: string }>) =>
       request<any>('POST', '/chat', { messages }),
   },
+  tools: {
+    list: () => request<any>('GET', '/mcp/tools'),
+  },
 };

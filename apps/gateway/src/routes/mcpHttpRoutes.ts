@@ -13,6 +13,7 @@ import {
 } from "../middleware/auth.js";
 import { connectMcpClient } from "../lib/mcpClient.js";
 import { canAccessTool } from "../lib/toolPermissions.js";
+import { decryptCredential } from "../lib/credentialCrypto.js";
 
 const router = Router();
 
@@ -45,7 +46,7 @@ async function createGatewayServer(
         try {
           const { client, transport } = await connectMcpClient(
             upstream.url,
-            upstream.credential,
+            decryptCredential(upstream.credential),
             10_000
           );
 
@@ -170,7 +171,7 @@ async function createGatewayServer(
     try {
       const { client, transport } = await connectMcpClient(
         upstream.url,
-        upstream.credential,
+        decryptCredential(upstream.credential),
         15_000
       );
 

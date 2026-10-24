@@ -8,6 +8,7 @@ interface AuditItem {
   toolName: string
   inputArgs?: any
   result?: any
+  details?: any
   status: string
   durationMs: number
   createdAt: string
@@ -34,7 +35,7 @@ export default function AuditPage() {
     page: number
     limit: number
   }>({
-    queryKey: ['audit', page],
+    queryKey: ['audit', page, statusFilter],
     queryFn: () => api.audit.list(page, limit, statusFilter),
     refetchInterval: 15_000,
   })
@@ -202,15 +203,9 @@ export default function AuditPage() {
 
             <div className="space-y-3 overflow-y-auto pr-1 flex-1">
               <div>
-                <span className="text-xs text-slate-400 block mb-1">Input Arguments:</span>
+                <span className="text-xs text-slate-400 block mb-1">Details:</span>
                 <pre className="p-3 bg-slate-950 rounded-lg text-xs font-mono text-slate-300 overflow-x-auto border border-slate-800">
-                  {JSON.stringify(selectedLog.inputArgs ?? {}, null, 2)}
-                </pre>
-              </div>
-              <div>
-                <span className="text-xs text-slate-400 block mb-1">Result Payload:</span>
-                <pre className="p-3 bg-slate-950 rounded-lg text-xs font-mono text-emerald-300 overflow-x-auto border border-slate-800">
-                  {JSON.stringify(selectedLog.result ?? {}, null, 2)}
+                  {JSON.stringify(selectedLog.details ?? {}, null, 2)}
                 </pre>
               </div>
             </div>

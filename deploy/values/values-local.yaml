@@ -14,12 +14,18 @@ ingress:
   enabled: true
   className: "nginx"
   annotations:
-    ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
   hosts:
-    store: "store.local"
-    gateway: "gateway.local"
-    dashboard: "dashboard.local"
+    store: "store.localtest.me"
+    gateway: "gateway.localtest.me"
+    dashboard: "dashboard.localtest.me"
   tls: []
+
+secrets:
+  llm:
+    baseUrl: "http://host.docker.internal:11434/v1"
+    model: "qwen2.5:3b"
 
 resources:
   requests:

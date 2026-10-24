@@ -23,6 +23,8 @@ import {
   authenticateApiKey,
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
+import { canAccessTool } from "../lib/toolPermissions.js";
+import { decryptCredential } from "../lib/credentialCrypto.js";
 
 const router = Router();
 router.use(authenticateApiKey);
@@ -30,7 +32,7 @@ router.use(authenticateApiKey);
 // ---------------------------------------------------------------------------
 // Build the list of gateway-namespaced tools for the LLM function schema
 // ---------------------------------------------------------------------------
-async function getGatewayToolsForLLM() {
+async function getGatewayToolsForLLM(role: string | undefined) {
   const upstreams = await prisma.upstream.findMany({ where: { enabled: true } });
 
   const allTools: any[] = [];
@@ -40,12 +42,13 @@ async function getGatewayToolsForLLM() {
       try {
         const { client, transport } = await connectMcpClient(
           upstream.url,
-          upstream.credential,
+          decryptCredential(upstream.credential),
           8_000
         );
         try {
           const res = await client.listTools();
           for (const t of res.tools) {
+            if (!canAccessTool(role, t.name)) continue;
             allTools.push({
               type: "function",
               function: {
@@ -77,13 +80,32 @@ async function getGatewayToolsForLLM() {
 async function callUpstreamTool(
   gatewayToolName: string,
   args: Record<string, unknown>,
-  userId: string
+  userId: string,
+  role: string | undefined
 ): Promise<string> {
   const sep = gatewayToolName.indexOf("__");
   if (sep < 0) return "Invalid tool name";
 
   const upstreamId = gatewayToolName.slice(0, sep);
   const toolName = gatewayToolName.slice(sep + 2);
+
+  if (!canAccessTool(role, toolName)) {
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        upstreamId,
+        toolName,
+        status: "DENIED",
+        durationMs: 0,
+        details: {
+          source: "chat_agent",
+          reason: "Tool access denied by role permissions",
+        },
+      },
+    });
+
+    return "Permission denied: your role cannot access this tool.";
+  }
 
   const upstream = await prisma.upstream.findFirst({
     where: { id: upstreamId, enabled: true },
@@ -96,7 +118,7 @@ async function callUpstreamTool(
   try {
     const { client, transport } = await connectMcpClient(
       upstream.url,
-      upstream.credential,
+      decryptCredential(upstream.credential),
       15_000
     );
 
@@ -175,7 +197,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     }
 
     // Gather all gateway tools
-    const gatewayTools = await getGatewayToolsForLLM();
+    const gatewayTools = await getGatewayToolsForLLM(req.user?.role);
 
     // LLM function-call tools (strip internal _* fields)
     const llmTools = gatewayTools.map(({ _upstreamId, _upstreamName, _toolName, ...t }) => t);
@@ -204,9 +226,9 @@ Never reveal customer names, addresses, email addresses, phone numbers, order ke
 
     const executedToolCalls = new Set<string>();
 
-    for (let round = 0; round < 4; round++) {
+    for (let round = 0; round < 6; round++) {
       const llmStart = Date.now();
-      console.log(`[chat] LLM round ${round + 1}/4 started`);
+      console.log(`[chat] LLM round ${round + 1}/6 started`);
 
       let llmRes: Response;
 
@@ -224,19 +246,19 @@ Never reveal customer names, addresses, email addresses, phone numbers, order ke
             tools: llmTools.length > 0 ? llmTools : undefined,
             tool_choice: llmTools.length > 0 ? "auto" : undefined,
             temperature: 0,
-            max_tokens: 128,
+            max_tokens: 1024,
           }),
 
           signal: AbortSignal.timeout(90_000),
         });
 
         console.log(
-          `[chat] LLM round ${round + 1}/4 responded in ${Date.now() - llmStart
+          `[chat] LLM round ${round + 1}/6 responded in ${Date.now() - llmStart
           }ms`
         );
       } catch (err) {
         console.error(
-          `[chat] LLM round ${round + 1}/4 failed after ${Date.now() - llmStart
+          `[chat] LLM round ${round + 1}/6 failed after ${Date.now() - llmStart
           }ms:`,
           err
         );
@@ -357,7 +379,8 @@ Never reveal customer names, addresses, email addresses, phone numbers, order ke
           const result = await callUpstreamTool(
             toolName,
             args,
-            req.user!.id
+            req.user!.id,
+            req.user?.role
           );
 
           toolCallsLog.push({

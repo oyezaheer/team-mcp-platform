@@ -7,6 +7,7 @@ import {
 } from "../middleware/auth.js";
 import { connectMcpClient } from "../lib/mcpClient.js";
 import { canAccessTool } from "../lib/toolPermissions.js";
+import { decryptCredential } from "../lib/credentialCrypto.js";
 
 const router = Router();
 
@@ -32,7 +33,7 @@ router.get("/tools", async (req: AuthenticatedRequest, res) => {
           try {
             const { client, transport } = await connectMcpClient(
               upstream.url,
-              upstream.credential,
+              decryptCredential(upstream.credential),
               10_000
             );
 
@@ -71,19 +72,20 @@ router.get("/tools", async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// POST /api/mcp/tools/call — execute a tool via its gateway-qualified name
-// ---------------------------------------------------------------------------
-
-// if (!canAccessTool(req.user?.role, toolName)) {
-//   res.status(403).json({
-//     error: "Forbidden: your role cannot execute this tool",
-//   });
-//   return;
-// }
 
 router.post("/tools/call", async (req: AuthenticatedRequest, res) => {
   const { name, arguments: toolArguments = {} } = req.body ?? {};
+
+  if (
+    toolArguments === null ||
+    typeof toolArguments !== "object" ||
+    Array.isArray(toolArguments)
+  ) {
+    res.status(400).json({
+      error: "'arguments' must be a JSON object",
+    });
+    return;
+  }
 
   if (typeof name !== "string" || !name.includes("__")) {
     res.status(400).json({
@@ -98,30 +100,35 @@ router.post("/tools/call", async (req: AuthenticatedRequest, res) => {
 
 
   if (!canAccessTool(req.user?.role, toolName)) {
-  try {
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        toolName,
-        status: "DENIED",
-        durationMs: 0,
-        details: {
-          gatewayToolName: name,
-          reason: "role_forbidden",
-          role: req.user?.role,
+    try {
+      const knownUpstream = await prisma.upstream.findUnique({
+        where: { id: upstreamId },
+        select: { id: true },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          upstreamId: knownUpstream?.id ?? null,
+          toolName,
+          status: "DENIED",
+          durationMs: 0,
+          details: {
+            gatewayToolName: name,
+            reason: "role_forbidden",
+            role: req.user?.role,
+          },
         },
-      },
+      });
+    } catch (auditError) {
+      console.error("Failed to audit tool error:", auditError);
+    }
+
+    res.status(403).json({
+      error: "Forbidden: your role cannot execute this tool",
     });
-  } catch (error) {
-    console.error("Failed to audit denied tool call:", error);
+    return;
   }
-
-  res.status(403).json({
-    error: "Forbidden: your role cannot execute this tool",
-  });
-  return;
-
-}
 
   if (!toolName) {
     res.status(400).json({ error: "Invalid tool name" });
@@ -142,7 +149,7 @@ router.post("/tools/call", async (req: AuthenticatedRequest, res) => {
   try {
     const { client, transport } = await connectMcpClient(
       upstream.url,
-      upstream.credential,
+      decryptCredential(upstream.credential),
       15_000
     );
 

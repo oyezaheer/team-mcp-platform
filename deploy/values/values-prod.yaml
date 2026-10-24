@@ -1,4 +1,4 @@
-# Production VPS Values (k3s, Cloud VPS, Hetzner, DigitalOcean)
+﻿# Production VPS Values (k3s, Cloud VPS, Hetzner, DigitalOcean)
 environment: production
 
 storage:
@@ -6,6 +6,7 @@ storage:
   mariadb:
     size: 20Gi
   wordpress:
+    siteUrl: "https://store.yourdomain.com"
     size: 20Gi
   postgres:
     size: 10Gi
@@ -39,6 +40,7 @@ mariadb:
       memory: 2Gi
 
 wordpress:
+  siteUrl: "https://store.yourdomain.com"
   resources:
     requests:
       cpu: 500m
@@ -48,7 +50,10 @@ wordpress:
       memory: 2Gi
 
 gateway:
-  # In production, override DASHBOARD_ORIGIN explicitly
+  image:
+    repository: ghcr.io/oyezaheer/team-mcp-gateway
+    tag: "1.0.17"
+    pullPolicy: IfNotPresent
   dashboardOrigin: "https://dashboard.yourdomain.com"
   resources:
     requests:
@@ -60,8 +65,8 @@ gateway:
 
 dashboard:
   image:
-    repository: team-mcp-dashboard
-    tag: 1.0.0
+    repository: ghcr.io/oyezaheer/team-mcp-dashboard
+    tag: 1.0.3
     pullPolicy: IfNotPresent
   resources:
     requests:
@@ -71,10 +76,26 @@ dashboard:
       cpu: 200m
       memory: 128Mi
 
-# LLM secrets â€” override at deploy time, never commit real keys
-# helm upgrade --install ... --set secrets.llm.apiKey="sk-..." --set secrets.llm.model="gpt-4o"
+# LLM configuration
 secrets:
   llm:
     apiKey: ""
     baseUrl: "https://api.openai.com/v1"
     model: "gpt-4o-mini"
+
+networkPolicy:
+  enabled: true
+  ingressControllerNamespace: kube-system
+
+woocommerceMcp:
+  image:
+    repository: ghcr.io/oyezaheer/team-mcp-woocommerce
+    tag: "1.0.5"
+inventoryMcp:
+  image:
+    repository: ghcr.io/oyezaheer/inventory-mcp
+    tag: "1.0.0"
+supportMcp:
+  image:
+    repository: ghcr.io/oyezaheer/support-mcp
+    tag: "1.0.0"

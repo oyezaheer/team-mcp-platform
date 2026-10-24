@@ -1,0 +1,41 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+{{- range $p := (list
+  (dict "app" "woocommerce-mcp" "apps" (list "gateway") "ctl" false)
+  (dict "app" "inventory-mcp" "apps" (list "gateway") "ctl" false)
+  (dict "app" "support-mcp" "apps" (list "gateway") "ctl" false)
+  (dict "app" "postgres" "apps" (list "gateway") "ctl" false)
+  (dict "app" "mariadb" "apps" (list "wordpress") "ctl" false)
+  (dict "app" "wordpress" "apps" (list "woocommerce-mcp") "ctl" true)
+  (dict "app" "gateway" "apps" (list "dashboard") "ctl" true)
+  (dict "app" "dashboard" "apps" (list) "ctl" true)) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-{{ $p.app }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ $p.app }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+      {{- range $a := $p.apps }}
+        - podSelector:
+            matchLabels:
+              app: {{ $a }}
+      {{- end }}
+      {{- if $p.ctl }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.networkPolicy.ingressControllerNamespace }}
+      {{- end }}
+{{- end }}
+{{- end }}

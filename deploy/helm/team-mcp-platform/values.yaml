@@ -33,6 +33,7 @@ secrets:
     consumerSecret: ""
   gateway:
     databaseUrl: ""
+    encryptionKey: ""
   llm:
     apiKey: ""
     baseUrl: "https://api.openai.com/v1"
@@ -65,6 +66,7 @@ wordpress:
     limits:
       cpu: 500m
       memory: 512Mi
+  siteUrl: ""
 
 # PostgreSQL Deployment
 postgres:
@@ -84,7 +86,7 @@ postgres:
 gateway:
   image:
     repository: team-mcp-gateway
-    tag: 1.0.0
+    tag: 1.0.17
     pullPolicy: IfNotPresent
   port: 4000
   # Overrides DASHBOARD_ORIGIN env var. Defaults to http://<ingress.hosts.dashboard>
@@ -101,7 +103,7 @@ gateway:
 dashboard:
   image:
     repository: team-mcp-dashboard
-    tag: 1.0.0
+    tag: 1.0.3
     pullPolicy: IfNotPresent
   resources:
     requests:
@@ -114,8 +116,8 @@ dashboard:
 # WooCommerce MCP Service
 woocommerceMcp:
   image:
-    repository: woocommerce-mcp
-    tag: 1.0.0
+    repository: team-mcp-woocommerce
+    tag: 1.0.5
     pullPolicy: IfNotPresent
   port: 3003
   resources:
@@ -129,7 +131,7 @@ woocommerceMcp:
 # Inventory MCP Service
 inventoryMcp:
   image:
-    repository: inventory-mcp
+    repository: team-mcp-inventory
     tag: local
     pullPolicy: IfNotPresent
   port: 3001
@@ -165,3 +167,7 @@ ingress:
     gateway: "gateway.local"
     dashboard: "dashboard.local"
   tls: []
+
+networkPolicy:
+  enabled: true
+  ingressControllerNamespace: ingress-nginx

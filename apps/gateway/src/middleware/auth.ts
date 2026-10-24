@@ -58,20 +58,6 @@ export async function authenticateApiKey(
         });
 
 
-        await prisma.auditLog.create({
-            data: {
-                userId: apiKey.user.id,
-                toolName: "api.authenticate",
-                status: "SUCCESS",
-                details: {
-                    method: req.method,
-                    path: req.path,
-                    apiKeyPrefix: apiKey.keyPrefix,
-                },
-            },
-        });
-
-
         req.user = {
             id: apiKey.user.id,
             email: apiKey.user.email,

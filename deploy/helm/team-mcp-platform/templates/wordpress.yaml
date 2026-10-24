@@ -1,3 +1,4 @@
+{{- $siteUrl := .Values.wordpress.siteUrl | default (printf "http://%s" .Values.ingress.hosts.store) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,6 +42,10 @@ spec:
                 secretKeyRef:
                   name: mariadb-secret
                   key: MARIADB_PASSWORD
+            - name: WORDPRESS_CONFIG_EXTRA
+              value: |
+                define('WP_HOME', '{{ $siteUrl }}');
+                define('WP_SITEURL', '{{ $siteUrl }}');
           volumeMounts:
             - name: wordpress-data
               mountPath: /var/www/html
@@ -64,7 +69,8 @@ spec:
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 20
-            timeoutSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 6
           resources:
             {{- toYaml .Values.wordpress.resources | nindent 12 }}
       volumes:

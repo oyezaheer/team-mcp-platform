@@ -1,0 +1,1 @@
+ALTER TABLE "Upstream" ADD COLUMN IF NOT EXISTS "credential" TEXT;
